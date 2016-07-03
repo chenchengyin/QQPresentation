@@ -1,5 +1,6 @@
 package com.anarchy.qqpresentation.presentation;
 
+import android.animation.Animator;
 import android.graphics.Point;
 
 /**
@@ -11,7 +12,10 @@ import android.graphics.Point;
  * Copyright © 2014-2016 Shanghai Xiaotu Network Technology Co., Ltd.
  */
 public interface Portrait {
-    void showHalo();
-    void hideHalo();
-    Point getCenterPoint();
+    Animator showHalo();
+    Animator hideHalo();
+    int getLeft();
+    int getTop();
+    int getWidth();
+    int getHeight();
 }

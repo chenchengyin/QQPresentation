@@ -1,13 +1,23 @@
 package com.anarchy.qqpresentation.presentation;
 
+import android.animation.Animator;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Point;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.support.v4.widget.ViewDragHelper;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.RelativeLayout;
 
 import com.anarchy.qqpresentation.R;
+import com.anarchy.qqpresentation.presentation.utils.Util;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,27 +42,35 @@ public class PresentationLayout extends RelativeLayout {
     private int mState = STATE_COLLAPSED;
     private Portrait mPortrait;
     private ViewDragHelper mDragHelper;//使用dragHelper 实现 tagView的拖动
-
+    private int mCollapsedHeight;//默认高度，比如在xml中设置的高度
+    private int mExpandHeight;//展开时需要的高度 未设置则取父view的高度即设置Layout_height = "match_parent"
+    private AnimatorSet mExpandAnimator;
+    private AnimatorSet mCollapsedAnimator;
+    private Drawable mOriginBackground;
+    private Drawable mBluredBackground;
+    private View mBackgroundOverlay;//用来显示做模糊背景效果
 
     private List<TagView> mTagViews;
 
     public PresentationLayout(Context context) {
         super(context);
-        init();
+        init(context);
     }
 
     public PresentationLayout(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init();
+        init(context);
     }
 
     public PresentationLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
-        init();
+        init(context);
     }
 
 
-    private void init() {
+    private void init(Context context) {
+        mBackgroundOverlay = new View(context);
+        addViewInLayout(mBackgroundOverlay,0,new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mDragHelper = ViewDragHelper.create(this, 1.0f, new ViewDragHelper.Callback() {
             @Override
             public boolean tryCaptureView(View child, int pointerId) {
@@ -88,9 +106,73 @@ public class PresentationLayout extends RelativeLayout {
      */
     public void expand() {
         if (mState == STATE_COLLAPSED) {
-
+            if (mExpandAnimator == null || mCollapsedHeight == 0) {
+                mExpandAnimator = createExpandAnimator();
+            }
         }
     }
+
+    private AnimatorSet createExpandAnimator() {
+        ensureHeightIsCorrect();
+        ObjectAnimator step1 = ObjectAnimator.ofInt(this,"height",mCollapsedHeight,mExpandHeight);
+        step1.setDuration(400);
+        ObjectAnimator step2 = ObjectAnimator.ofFloat(mBackgroundOverlay,"alpha",0f,1f);
+        step2.setDuration(400);
+        ensurePortrait();
+        Animator step3 = mPortrait.showHalo();
+        Animator step4 = createExpandTagAnimator();
+        AnimatorSet set = new AnimatorSet();
+        AnimatorSet.Builder builder = set.play(step1).with(step2);
+        if(step3 != null) builder.before(step3);
+        if(step4 != null) builder.before(step4);
+        return set;
+    }
+
+
+    private Animator createExpandTagAnimator(){
+        if(mTagViews != null){
+        }
+        return null;
+    }
+
+
+    private Runnable mDoBlurRunnable = new Runnable() {
+        @Override
+        public void run() {
+           Bitmap bitmap =  Util.getBitmapFromDrawable(getBackground());
+            if(mOriginBackground == null) mOriginBackground = getBackground();
+            if(bitmap != null){
+                Bitmap blurBitmap = Util.doBlur(getContext(),bitmap,20);
+                Drawable newDrawable = new BitmapDrawable(getResources(),blurBitmap);
+                mBluredBackground = newDrawable;
+                Util.setBackground(mBackgroundOverlay,newDrawable);
+            }
+        }
+    };
+    private void ensureHeightIsCorrect(){
+        if (mCollapsedHeight == 0) {
+            mCollapsedHeight = getHeight();
+        }
+        if (mExpandHeight == 0) {
+            if (getParent() instanceof ViewGroup) {
+                ViewGroup viewGroup = (ViewGroup) getParent();
+                mExpandHeight = viewGroup.getHeight();
+            } else {
+                mExpandHeight = mCollapsedHeight;
+            }
+        }
+    }
+
+    public void setHeight(int height) {
+        getLayoutParams().height = height;
+        if (Build.VERSION.SDK_INT >= 18 && !isInLayout()) {
+            requestLayout();
+        } else {
+            requestLayout();
+        }
+        invalidate();
+    }
+
 
     /**
      * 进行折叠动画 状态变化 {@link #STATE_COLLAPSING}->{@link #STATE_COLLAPSED}
@@ -132,27 +214,39 @@ public class PresentationLayout extends RelativeLayout {
 
     /**
      * 添加所有标签
+     *
      * @param tags
      */
     public void inputTags(List<Tag> tags) {
+        if(tags == null||tags.size() == 0) return;
         if (mTagViews != null) {
             mTagViews.clear();
         }
         for (Tag tag : tags) {
             inputTag(tag);
         }
+        for(View child:mTagViews){
+            addViewInLayout(child,-1,generateDefaultLayoutParams());
+        }
+        requestLayout();
+        invalidate();
     }
 
     /**
      * 添加单个标签
+     *
      * @param tag
      */
-    public void inputTag(Tag tag){
-        if(mTagViews == null){
+    public void inputTag(Tag tag) {
+        if(tag == null) return;
+        if (mTagViews == null) {
             mTagViews = new ArrayList<>();
         }
         TagView tagView = new TagView(getContext());
         tagView.setSource(tag);
+        tagView.setVisibility(GONE);
+        tagView.setScaleX(0);
+        tagView.setScaleY(0);
         mTagViews.add(tagView);
     }
 

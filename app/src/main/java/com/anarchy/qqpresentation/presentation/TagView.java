@@ -15,6 +15,8 @@ import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.view.View;
 
+import com.anarchy.qqpresentation.presentation.utils.Util;
+
 /**
  * Version 2.1.1
  * <p/>
@@ -114,13 +116,6 @@ class TagView extends View {
         canvas.restore();
     }
 
-    private void setBackgroundCompat(Drawable bg){
-        if(Build.VERSION.SDK_INT >= 16) {
-            setBackground(bg);
-        }else {
-            setBackgroundDrawable(bg);
-        }
-    }
 
     /**
      * 设置背景颜色
@@ -134,7 +129,7 @@ class TagView extends View {
         }else {
             ShapeDrawable shapeDrawable = new ShapeDrawable(new OvalShape());
             shapeDrawable.getPaint().setColor(mBgColor);
-            setBackgroundCompat(shapeDrawable);
+            Util.setBackground( this,shapeDrawable);
         }
     }
 

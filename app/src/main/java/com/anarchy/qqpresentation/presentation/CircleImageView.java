@@ -100,30 +100,25 @@ public class CircleImageView extends ImageView implements Portrait{
     /**
      * 显示光环
      */
-    public void showHalo(){
+    public Animator showHalo(){
         if(mShowAnimator == null){
             mShowAnimator = ObjectAnimator.ofInt(this, mHaloWidthProperty,0,mSavedBorderWidth);
             mShowAnimator.addListener(mShowListener);
             mShowAnimator.setDuration(400);
         }
-        mShowAnimator.start();
+       return mShowAnimator;
     }
 
     /**
      *隐藏光环
      */
-    public void hideHalo(){
+    public Animator hideHalo(){
         if(mHideAnimator == null){
             mHideAnimator = ObjectAnimator.ofInt(this,mHaloWidthProperty,mSavedBorderWidth,0);
             mHideAnimator.addListener(mHideListener);
             mHideAnimator.setDuration(400);
         }
-        mHideAnimator.start();
-    }
-
-    @Override
-    public Point getCenterPoint() {
-        return new Point((int)mBorderRect.centerX(),(int)mBorderRect.centerY());
+       return mHideAnimator;
     }
 
     private AnimatorListenerAdapter mShowListener = new AnimatorListenerAdapter() {
