@@ -1,24 +1,33 @@
 package com.anarchy.qqpresentation.presentation;
 
 import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.Bitmap;
-import android.graphics.Point;
+import android.graphics.Path;
+import android.graphics.PointF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.support.v4.widget.ViewDragHelper;
 import android.util.AttributeSet;
-import android.view.MotionEvent;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.RelativeLayout;
 
 import com.anarchy.qqpresentation.R;
+import com.anarchy.qqpresentation.presentation.evaluator.PathEvaluator;
 import com.anarchy.qqpresentation.presentation.utils.Util;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,10 +44,15 @@ import java.util.List;
  */
 public class PresentationLayout extends RelativeLayout {
     private static final String TAG = "PresentationLayout";
+    /**
+     * 对应各个标签的绘制的角度位置
+     */
+    private final static double[] RADIUS = new double[]{0.7d, 2.25d, 3.14d, 5.5d, 0.1d, 1.4d, 4.7d};
     private static final int STATE_COLLAPSED = 0;
     private static final int STATE_EXPANDING = 1;
     private static final int STATE_EXPANDED = 2;
     private static final int STATE_COLLAPSING = 3;
+    private static final double CONTROL_RADIANS_OFFSET = 1.5d;
     private int mState = STATE_COLLAPSED;
     private Portrait mPortrait;
     private ViewDragHelper mDragHelper;//使用dragHelper 实现 tagView的拖动
@@ -49,37 +63,45 @@ public class PresentationLayout extends RelativeLayout {
     private Drawable mOriginBackground;
     private Drawable mBluredBackground;
     private View mBackgroundOverlay;//用来显示做模糊背景效果
+    private int mThickness;//圆环厚度 也是tagView 圆心可活动范围, 初始范围为thickness 中间值
+    private int mInnerRadius;//圆环内部半径
+    private TagViewProperty mTagViewProperty = new TagViewProperty(PointF.class, "point");
+
 
     private List<TagView> mTagViews;
 
     public PresentationLayout(Context context) {
-        super(context);
-        init(context);
+        this(context, null);
     }
 
     public PresentationLayout(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init(context);
+        init(context, attrs, defStyleAttr);
     }
 
     public PresentationLayout(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        init(context);
+        this(context, attrs, 0);
     }
 
 
-    private void init(Context context) {
+    private void init(Context context, AttributeSet attrs, int defStyleAttr) {
         mBackgroundOverlay = new View(context);
-        addViewInLayout(mBackgroundOverlay,0,new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mBackgroundOverlay.setVisibility(GONE);
+        addViewInLayout(mBackgroundOverlay, 0, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mDragHelper = ViewDragHelper.create(this, 1.0f, new ViewDragHelper.Callback() {
             @Override
             public boolean tryCaptureView(View child, int pointerId) {
                 return child instanceof TagView;
             }
         });
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.PresentationLayout, defStyleAttr, R.style.Default_Presentation);
+        mInnerRadius = a.getDimensionPixelSize(R.styleable.PresentationLayout_InnerRadius, 300);
+        mThickness = a.getDimensionPixelOffset(R.styleable.PresentationLayout_Thickness, 30);
+        a.recycle();
+        post(mDoBlurRunnable);
     }
 
-    @Override
+   /* @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         return mDragHelper.shouldInterceptTouchEvent(ev);
     }
@@ -88,7 +110,7 @@ public class PresentationLayout extends RelativeLayout {
     public boolean onTouchEvent(MotionEvent event) {
         mDragHelper.processTouchEvent(event);
         return true;
-    }
+    }*/
 
     /**
      * 返回当前状态 状态类型如下:
@@ -108,48 +130,253 @@ public class PresentationLayout extends RelativeLayout {
         if (mState == STATE_COLLAPSED) {
             if (mExpandAnimator == null || mCollapsedHeight == 0) {
                 mExpandAnimator = createExpandAnimator();
+                mExpandAnimator.addListener(mExpandListener);
             }
+            mExpandAnimator.start();
+        }
+    }
+
+    /**
+     * 进行折叠动画 状态变化 {@link #STATE_COLLAPSING}->{@link #STATE_COLLAPSED}
+     */
+    public void collapse() {
+        if (mState == STATE_EXPANDED) {
+            if (mCollapsedAnimator == null || mCollapsedHeight == 0) {
+                mCollapsedAnimator = createCollapseAnimator();
+            }
+            mCollapsedAnimator.start();
         }
     }
 
     private AnimatorSet createExpandAnimator() {
         ensureHeightIsCorrect();
-        ObjectAnimator step1 = ObjectAnimator.ofInt(this,"height",mCollapsedHeight,mExpandHeight);
+        ObjectAnimator step1 = ObjectAnimator.ofInt(this, "height", mCollapsedHeight, mExpandHeight);
         step1.setDuration(400);
-        ObjectAnimator step2 = ObjectAnimator.ofFloat(mBackgroundOverlay,"alpha",0f,1f);
+        ObjectAnimator step2 = ObjectAnimator.ofFloat(mBackgroundOverlay, "alpha", 0f, 1f);
         step2.setDuration(400);
+        step2.addListener(mBlurOverlayExpandListener);
         ensurePortrait();
         Animator step3 = mPortrait.showHalo();
-        Animator step4 = createExpandTagAnimator();
+        Animator step4 = createTagAnimator(false);
         AnimatorSet set = new AnimatorSet();
         AnimatorSet.Builder builder = set.play(step1).with(step2);
-        if(step3 != null) builder.before(step3);
-        if(step4 != null) builder.before(step4);
+        if (step3 != null) builder.before(step3);
+        if (step4 != null) {
+            step4.setStartDelay(600);
+            builder.before(step4);
+        }
+        return set;
+    }
+
+    private AnimatorSet createCollapseAnimator() {
+        ensureHeightIsCorrect();
+        ObjectAnimator step1 = ObjectAnimator.ofInt(this, "height", mCollapsedHeight);
+        ObjectAnimator step2 = ObjectAnimator.ofFloat(mBackgroundOverlay, "alpha", 1f, 0f);
+        ensurePortrait();
+        Animator step3 = mPortrait.hideHalo();
+        Animator step4 = createTagAnimator(true);
+        AnimatorSet set = new AnimatorSet();
+        set.playTogether(step1, step2, step3, step4);
+        set.setDuration(400);
+        set.addListener(mCollapseListener);
         return set;
     }
 
 
-    private Animator createExpandTagAnimator(){
-        if(mTagViews != null){
+    private Animator createTagAnimator(boolean reverse) {
+        ensurePortrait();
+        int centerX = mPortrait.getLeft() + mPortrait.getWidth() / 2;
+        int expectHeight = reverse ? mCollapsedHeight : mExpandHeight;
+        int foreCastTop = forecastTop((LayoutParams) mPortrait.getLayoutParams(), expectHeight, mPortrait.getHeight());
+        if (foreCastTop == Integer.MIN_VALUE) foreCastTop = mPortrait.getTop();
+        int centerY = foreCastTop + mPortrait.getHeight() / 2;
+        int portraitRadius = mPortrait.getWidth() / 2;
+        if (mTagViews != null) {
+            AnimatorSet animatorSet = new AnimatorSet();
+            List<Animator> animators = new ArrayList<>();
+            for (int i = 0; i < mTagViews.size(); i++) {
+                TagView tagView = mTagViews.get(i);
+                tagView.setVisibility(VISIBLE);
+                float targetX, targetY;
+                if (reverse) {
+                    targetX = tagView.getX() + tagView.getWidth() / 2;
+                    targetY = tagView.getY() + tagView.getHeight() / 2;
+                } else {
+                    targetX = Math.round(centerX + (mInnerRadius + mThickness / 2) * Math.cos(RADIUS[i]));
+                    targetY = Math.round(centerY - (mInnerRadius + mThickness / 2) * Math.sin(RADIUS[i]));
+                }
+                float controlX = Math.round(centerX + portraitRadius * Math.cos(RADIUS[i] + CONTROL_RADIANS_OFFSET));
+                float controlY = Math.round(centerY - portraitRadius * Math.sin(RADIUS[i] + CONTROL_RADIANS_OFFSET));
+                Path path = new Path();
+                if (reverse) {
+                    path.moveTo(targetX, targetY);
+                    path.quadTo(controlX, controlY, centerX, centerY);
+                } else {
+                    path.moveTo(centerX, centerY);
+                    path.quadTo(controlX, controlY, targetX, targetY);
+                }
+                ObjectAnimator pathAnimator;
+                if (Build.VERSION.SDK_INT >= 21) {
+                    pathAnimator = ObjectAnimator.ofObject(tagView, mTagViewProperty, null, path);
+                } else {
+                    pathAnimator = ObjectAnimator.ofObject(tagView, mTagViewProperty, new PathEvaluator(path), new PointF());
+                }
+                ObjectAnimator rotationAnimator;
+                ObjectAnimator scaleXAnimator;
+                ObjectAnimator scaleYAnimator;
+                if (reverse) {
+                    rotationAnimator = ObjectAnimator.ofFloat(tagView, "rotation", 0, -60);
+                    scaleXAnimator = ObjectAnimator.ofFloat(tagView, "scaleX", 0);
+                    scaleYAnimator = ObjectAnimator.ofFloat(tagView, "scaleY", 0);
+                } else {
+                    rotationAnimator = ObjectAnimator.ofFloat(tagView, "rotation", -60, 0);
+                    scaleXAnimator = ObjectAnimator.ofFloat(tagView, "scaleX", 0, 1f);
+                    scaleYAnimator = ObjectAnimator.ofFloat(tagView, "scaleY", 0, 1f);
+                }
+
+                animators.add(pathAnimator);
+                animators.add(scaleXAnimator);
+                animators.add(scaleYAnimator);
+                animators.add(rotationAnimator);
+
+            }
+            animatorSet.playTogether(animators);
+            animatorSet.setDuration(800);
+            if (reverse) {
+                animatorSet.setInterpolator(new LinearInterpolator());
+            } else {
+                animatorSet.setInterpolator(new DecelerateInterpolator());
+            }
+            return animatorSet;
         }
         return null;
     }
 
 
+    /**
+     * 预计宽度改变所造成的子view left将要变化到的值
+     *
+     * @param childParams
+     * @param myWidth     parent width
+     * @return
+     */
+    private int forecastLeft(LayoutParams childParams, int myWidth, int childWidth) {
+        final int[] rules = childParams.getRules();
+        RelativeLayout.LayoutParams anchorParams;
+        int left = Integer.MIN_VALUE;
+        anchorParams = invokeGetRelatedViewParams(rules, RIGHT_OF);
+        if (anchorParams != null) {
+            left = getFieldIntValue(anchorParams, "mRight") + (anchorParams.rightMargin +
+                    childParams.leftMargin);
+        } else if (childParams.alignWithParent && rules[RIGHT_OF] != 0) {
+            left = getPaddingLeft() + childParams.leftMargin;
+        }
+        anchorParams = invokeGetRelatedViewParams(rules, ALIGN_LEFT);
+        if (anchorParams != null) {
+            left = getFieldIntValue(anchorParams, "mLeft") + childParams.leftMargin;
+        } else if (childParams.alignWithParent && rules[ALIGN_LEFT] != 0) {
+            left = getPaddingLeft() + childParams.leftMargin;
+        }
+        if (0 != rules[ALIGN_PARENT_LEFT]) {
+            left = getPaddingLeft() + childParams.leftMargin;
+        }
+        if (rules[CENTER_HORIZONTAL] != 0 || rules[CENTER_IN_PARENT] != 0) {
+            left = (myWidth - childWidth) / 2;
+        }
+        return left;
+    }
+
+    /**
+     * 预计高度改变 所造成 子view top 将要改变到的值
+     *
+     * @param childParams
+     * @param myHeight    parent height
+     * @return
+     */
+    private int forecastTop(LayoutParams childParams, int myHeight, int childHeight) {
+        final int[] rules = childParams.getRules();
+        RelativeLayout.LayoutParams anchorParams;
+        int top = Integer.MIN_VALUE;
+        anchorParams = invokeGetRelatedViewParams(rules, BELOW);
+        if (anchorParams != null) {
+            top = getFieldIntValue(anchorParams, "mBottom") + (anchorParams.bottomMargin +
+                    childParams.topMargin);
+        } else if (childParams.alignWithParent && rules[BELOW] != 0) {
+            top = getPaddingTop() + childParams.topMargin;
+        }
+        anchorParams = invokeGetRelatedViewParams(rules, ALIGN_TOP);
+        if (anchorParams != null) {
+            top = getFieldIntValue(anchorParams, "mTop") + childParams.topMargin;
+        } else if (childParams.alignWithParent && rules[ALIGN_TOP] != 0) {
+            top = getPaddingTop() + childParams.topMargin;
+        }
+        if (0 != rules[ALIGN_PARENT_TOP]) {
+            top = getPaddingTop() + childParams.topMargin;
+        }
+
+        if (rules[CENTER_VERTICAL] != 0 || rules[CENTER_IN_PARENT] != 0) {
+            top = (myHeight - childHeight) / 2;
+        }
+        return top;
+    }
+
+    /**
+     * 反射调用{@link RelativeLayout#getRelatedViewParams}
+     *
+     * @param rules
+     * @param relation
+     * @return
+     */
+    private LayoutParams invokeGetRelatedViewParams(int[] rules, int relation) {
+        try {
+            Method method = RelativeLayout.class.getDeclaredMethod("getRelatedViewParams", int[].class, int.class);
+            method.setAccessible(true);
+            return (LayoutParams) method.invoke(this, rules, relation);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 反射获取value{@link android.widget.RelativeLayout.LayoutParams}
+     *
+     * @param layoutParams
+     * @param fieldName
+     * @return
+     */
+    private int getFieldIntValue(LayoutParams layoutParams, String fieldName) {
+        try {
+            Field field = layoutParams.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return (int) field.get(layoutParams);
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        return Integer.MIN_VALUE;
+    }
+
     private Runnable mDoBlurRunnable = new Runnable() {
         @Override
         public void run() {
-           Bitmap bitmap =  Util.getBitmapFromDrawable(getBackground());
-            if(mOriginBackground == null) mOriginBackground = getBackground();
-            if(bitmap != null){
-                Bitmap blurBitmap = Util.doBlur(getContext(),bitmap,20);
-                Drawable newDrawable = new BitmapDrawable(getResources(),blurBitmap);
+            Bitmap bitmap = Util.getBitmapFromDrawable(getBackground());
+            if (mOriginBackground == null) mOriginBackground = getBackground();
+            if (bitmap != null) {
+                Bitmap blurBitmap = Util.doBlur(getContext(), bitmap, 20);
+                Drawable newDrawable = new BitmapDrawable(getResources(), blurBitmap);
                 mBluredBackground = newDrawable;
-                Util.setBackground(mBackgroundOverlay,newDrawable);
+                Util.setBackground(mBackgroundOverlay, newDrawable);
             }
         }
     };
-    private void ensureHeightIsCorrect(){
+
+    private void ensureHeightIsCorrect() {
         if (mCollapsedHeight == 0) {
             mCollapsedHeight = getHeight();
         }
@@ -173,15 +400,6 @@ public class PresentationLayout extends RelativeLayout {
         invalidate();
     }
 
-
-    /**
-     * 进行折叠动画 状态变化 {@link #STATE_COLLAPSING}->{@link #STATE_COLLAPSED}
-     */
-    public void collapse() {
-        if (mState == STATE_EXPANDED) {
-
-        }
-    }
 
     public void autoControl() {
         if (mState == STATE_COLLAPSED) {
@@ -218,15 +436,19 @@ public class PresentationLayout extends RelativeLayout {
      * @param tags
      */
     public void inputTags(List<Tag> tags) {
-        if(tags == null||tags.size() == 0) return;
+        if (tags == null || tags.size() == 0) return;
         if (mTagViews != null) {
             mTagViews.clear();
         }
-        for (Tag tag : tags) {
-            inputTag(tag);
+        for (int i = 0; i < tags.size(); i++) {
+            if (i > 7) {
+                Log.w(TAG, "最多设置7个标签");
+                break;
+            }
+            inputTag(tags.get(i));
         }
-        for(View child:mTagViews){
-            addViewInLayout(child,-1,generateDefaultLayoutParams());
+        for (View child : mTagViews) {
+            addViewInLayout(child, -1, generateDefaultLayoutParams());
         }
         requestLayout();
         invalidate();
@@ -238,16 +460,18 @@ public class PresentationLayout extends RelativeLayout {
      * @param tag
      */
     public void inputTag(Tag tag) {
-        if(tag == null) return;
+        if (tag == null) return;
         if (mTagViews == null) {
             mTagViews = new ArrayList<>();
         }
-        TagView tagView = new TagView(getContext());
-        tagView.setSource(tag);
-        tagView.setVisibility(GONE);
-        tagView.setScaleX(0);
-        tagView.setScaleY(0);
-        mTagViews.add(tagView);
+        if (mTagViews.size() < 7) {
+            TagView tagView = new TagView(getContext());
+            tagView.setSource(tag);
+            tagView.setVisibility(GONE);
+            tagView.setScaleX(0);
+            tagView.setScaleY(0);
+            mTagViews.add(tagView);
+        }
     }
 
     /**
@@ -263,7 +487,7 @@ public class PresentationLayout extends RelativeLayout {
          */
         int count = 1;
 
-        private Tag(String tag, int count) {
+        public Tag(String tag, int count) {
             this.tag = tag;
             this.count = count;
         }
@@ -288,4 +512,38 @@ public class PresentationLayout extends RelativeLayout {
             return count;
         }
     }
+
+    /**
+     * 监听 扩展动画
+     */
+    private AnimatorListenerAdapter mExpandListener = new AnimatorListenerAdapter() {
+        @Override
+        public void onAnimationStart(Animator animation) {
+            mState = STATE_EXPANDING;
+        }
+
+        @Override
+        public void onAnimationEnd(Animator animation) {
+            mState = STATE_EXPANDED;
+        }
+    };
+    private AnimatorListenerAdapter mBlurOverlayExpandListener = new AnimatorListenerAdapter() {
+        @Override
+        public void onAnimationStart(Animator animation) {
+            mBackgroundOverlay.setVisibility(VISIBLE);
+        }
+    };
+
+    private AnimatorListenerAdapter mCollapseListener = new AnimatorListenerAdapter() {
+        @Override
+        public void onAnimationStart(Animator animation) {
+            mState = STATE_COLLAPSING;
+        }
+
+        @Override
+        public void onAnimationEnd(Animator animation) {
+            mBackgroundOverlay.setVisibility(GONE);
+            mState = STATE_COLLAPSED;
+        }
+    };
 }

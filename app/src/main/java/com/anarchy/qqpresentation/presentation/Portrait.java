@@ -2,6 +2,8 @@ package com.anarchy.qqpresentation.presentation;
 
 import android.animation.Animator;
 import android.graphics.Point;
+import android.view.ViewGroup;
+import android.widget.RelativeLayout;
 
 /**
  * Version 2.1.1
@@ -18,4 +20,5 @@ public interface Portrait {
     int getTop();
     int getWidth();
     int getHeight();
+    ViewGroup.LayoutParams getLayoutParams();
 }

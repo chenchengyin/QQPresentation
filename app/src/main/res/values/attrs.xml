@@ -6,4 +6,8 @@
         <attr name="BorderCount" format="integer"/>
         <attr name="BorderWeakRatio" format="fraction"/>
     </declare-styleable>
+    <declare-styleable name="PresentationLayout">
+        <attr name="InnerRadius" format="dimension"/>
+        <attr name="Thickness" format="dimension"/>
+    </declare-styleable>
 </resources>

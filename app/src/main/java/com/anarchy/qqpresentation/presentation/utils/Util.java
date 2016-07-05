@@ -56,7 +56,7 @@ public class Util {
      * @return 模糊后的图片
      */
     public static Bitmap doBlur(Context context,Bitmap bitmap,int radius){
-        Bitmap result =  Bitmap.createBitmap(bitmap.getWidth(),bitmap.getHeight(), Bitmap.Config.RGB_565);
+        Bitmap result =  Bitmap.createBitmap(bitmap.getWidth(),bitmap.getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
         canvas.drawBitmap(bitmap,0,0,null);
         RenderScript renderScript = RenderScript.create(context);

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -8,6 +9,16 @@
 
     <com.anarchy.qqpresentation.presentation.PresentationLayout
         android:id="@+id/presentation"
+        android:background="@drawable/timg"
         android:layout_width="match_parent"
-        android:layout_height="800dp"/>
+        android:layout_height="350dp">
+        <com.anarchy.qqpresentation.presentation.CircleImageView
+            android:layout_width="120dp"
+            android:id="@id/portrait"
+            app:BorderWidth="10dp"
+            app:BorderCount="2"
+            android:layout_centerInParent="true"
+            android:src="@drawable/portrait"
+            android:layout_height="120dp"/>
+    </com.anarchy.qqpresentation.presentation.PresentationLayout>
 </RelativeLayout>

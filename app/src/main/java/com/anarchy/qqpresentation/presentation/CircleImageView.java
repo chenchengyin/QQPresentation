@@ -12,7 +12,6 @@ import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Point;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
@@ -27,7 +26,7 @@ import com.anarchy.qqpresentation.R;
 import com.anarchy.qqpresentation.presentation.utils.Util;
 
 public class CircleImageView extends ImageView implements Portrait{
-
+    private static final String TAG = "CircleImageView";
     private static final ScaleType SCALE_TYPE = ScaleType.CENTER_CROP;
 
     private final RectF mDrawableRect = new RectF();
@@ -63,7 +62,6 @@ public class CircleImageView extends ImageView implements Portrait{
 
     public CircleImageView(Context context) {
         super(context);
-
         init();
     }
 
@@ -184,7 +182,7 @@ public class CircleImageView extends ImageView implements Portrait{
                 int newAlpha = (int) (Math.pow(mBorderWeakRatio,i)*alpha);
                 int newColor = Color.argb(newAlpha,red,green,blue);
                 mBorderPaint.setColor(newColor);
-                int radius = (int) (mBorderRadius+i*mBorderWidth);
+                int radius = (int) (mDrawableRadius+0.5f*mBorderWidth+i*mBorderWidth);
                 canvas.drawCircle(mBorderRect.centerX(), mBorderRect.centerY(), radius, mBorderPaint);
             }
         }

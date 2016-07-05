@@ -4,15 +4,16 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.OvalShape;
-import android.os.Build;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 
 import com.anarchy.qqpresentation.presentation.utils.Util;
@@ -36,11 +37,13 @@ class TagView extends View {
 
     private int mBgColor = 0x88888888;
     private TextPaint mTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-    private int mTextSize = 15;
+    private Paint mBgPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    private int mTextSize = 30;
     private int mTextColor = Color.WHITE;
     private PresentationLayout.Tag tag;
     private StaticLayout mStaticLayout;
     private Rect mBounds = new Rect();
+    private float mRadius;
 
 
     public TagView(Context context) {
@@ -59,8 +62,14 @@ class TagView extends View {
     }
     private void init(){
         mTextPaint.setTextSize(mTextSize);
-        mTextPaint.setTextAlign(Paint.Align.CENTER);
+//        mTextPaint.setTextAlign(Paint.Align.CENTER);
         mTextPaint.setColor(Color.WHITE);
+        mTextPaint.setStyle(Paint.Style.FILL);
+        mBgPaint.setColor(0x88888888);
+        originPaddingBottom = getPaddingBottom();
+        originPaddingLeft = getPaddingLeft();
+        originPaddingRight = getPaddingRight();
+        originPaddingTop = getPaddingTop();
     }
     void setSource(PresentationLayout.Tag tag){
         this.tag = tag;
@@ -82,7 +91,7 @@ class TagView extends View {
             source = summary.substring(0,2)+"\n"+summary.substring(2)+"\n"+countWithBracket;
             width = (int) Math.max(mTextPaint.measureText(countWithBracket),mTextPaint.measureText(summary.substring(0,3)));
         }
-        mStaticLayout = new StaticLayout(source,mTextPaint,width, Layout.Alignment.ALIGN_CENTER,1,0,false);
+        mStaticLayout = new StaticLayout(source,mTextPaint,width, Layout.Alignment.ALIGN_CENTER,1f,0,false);
     }
 
 
@@ -90,18 +99,17 @@ class TagView extends View {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if(mStaticLayout == null){
             super.onMeasure(widthMeasureSpec,heightMeasureSpec);
-        }else {//封闭的测量高宽
+        }else {//不关心parent的属性 来测量高宽
             int width = mStaticLayout.getWidth();
             int height = mStaticLayout.getHeight();
-            originPaddingBottom = getPaddingBottom();
-            originPaddingLeft = getPaddingLeft();
-            originPaddingRight = getPaddingRight();
-            originPaddingTop = getPaddingTop();
             int diameter = (int) Math.hypot(width, height);
+            mRadius = 0.5f*diameter;
             int paddingLeft = (diameter - width) / 2 + originPaddingLeft;
             int paddingRight = (diameter - width) / 2 + originPaddingRight;
             int paddingTop = (diameter - height) / 2 + originPaddingTop;
             int paddingBottom = (diameter - height) / 2 + originPaddingBottom;
+            setPivotX(mRadius);
+            setPivotY(mRadius);
             setPadding(paddingLeft,paddingTop,paddingRight,paddingBottom);
             setMeasuredDimension(diameter, diameter);
         }
@@ -110,7 +118,7 @@ class TagView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         canvas.save();
-        canvas.clipRect(getPaddingLeft(),getPaddingTop(),getPaddingRight(),getPaddingBottom());
+        canvas.drawCircle(mRadius,mRadius,mRadius,mBgPaint);
         canvas.translate(getPaddingLeft(),getPaddingTop());
         mStaticLayout.draw(canvas);
         canvas.restore();
@@ -159,5 +167,15 @@ class TagView extends View {
         mTextColor = textColor;
         mTextPaint.setColor(mTextColor);
         invalidate();
+    }
+
+    void setPoint(PointF pointF){
+        setX(pointF.x - getWidth()/2);
+        setY(pointF.y - getHeight()/2);
+    }
+    private PointF mPointF = new PointF();
+    PointF getPoint(){
+        mPointF.set(getLeft()+getWidth()/2,getTop()+getHeight()/2);
+        return mPointF;
     }
 }
