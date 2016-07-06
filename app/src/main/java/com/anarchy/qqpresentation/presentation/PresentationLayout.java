@@ -12,13 +12,16 @@ import android.graphics.PointF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.support.v4.view.MotionEventCompat;
+import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.ViewDragHelper;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
-import android.view.animation.LinearInterpolator;
 import android.widget.RelativeLayout;
 
 import com.anarchy.qqpresentation.R;
@@ -65,7 +68,20 @@ public class PresentationLayout extends RelativeLayout {
     private View mBackgroundOverlay;//用来显示做模糊背景效果
     private int mThickness;//圆环厚度 也是tagView 圆心可活动范围, 初始范围为thickness 中间值
     private int mInnerRadius;//圆环内部半径
+    private int mTagPadding;//tagView 的padding值
     private TagViewProperty mTagViewProperty = new TagViewProperty(PointF.class, "point");
+    private List<StateChangeListener> mStateChangeListenerList;
+    private int capturedLeft;
+    private int capturedTop;
+    private boolean mSlideEnable = true;
+    private int mSlideLength;
+    private float[] mTargets = new float[14];
+    private boolean isCaptured = false;
+    private int mTagViewTextSize;
+    private int mTagViewBackgroundColor;
+    private int mTagViewBorderColor;
+    private int mTagViewBorderWidth;
+
 
 
     private List<TagView> mTagViews;
@@ -89,28 +105,148 @@ public class PresentationLayout extends RelativeLayout {
         mBackgroundOverlay.setVisibility(GONE);
         addViewInLayout(mBackgroundOverlay, 0, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mDragHelper = ViewDragHelper.create(this, 1.0f, new ViewDragHelper.Callback() {
-            @Override
-            public boolean tryCaptureView(View child, int pointerId) {
-                return child instanceof TagView;
-            }
-        });
+                    @Override
+                    public boolean tryCaptureView(View child, int pointerId) {
+                        return false;
+                    }
+
+                    @Override
+                    public int clampViewPositionHorizontal(View child, int left, int dx) {
+                        return left;
+                    }
+
+                    @Override
+                    public int clampViewPositionVertical(View child, int top, int dy) {
+                        return top;
+                    }
+
+                    @Override
+                    public void onViewCaptured(View capturedChild, int activePointerId) {
+                        if(capturedChild instanceof TagView){
+                            isCaptured = true;
+                            ((TagView)capturedChild).shouldWander = false;
+                            capturedLeft = capturedChild.getLeft();
+                            capturedTop = capturedChild.getTop();
+                        }
+                    }
+
+                    @Override
+                    public void onViewReleased(View releasedChild, float xvel, float yvel) {
+                        if(releasedChild instanceof TagView){
+                            isCaptured = false;
+                            ((TagView) releasedChild).shouldWander = true;
+                            mDragHelper.smoothSlideViewTo(releasedChild,capturedLeft,capturedTop);
+                            ViewCompat.postInvalidateOnAnimation(PresentationLayout.this);
+                        }
+                    }
+                }
+        );
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.PresentationLayout, defStyleAttr, R.style.Default_Presentation);
-        mInnerRadius = a.getDimensionPixelSize(R.styleable.PresentationLayout_InnerRadius, 300);
+        mInnerRadius = a.getDimensionPixelOffset(R.styleable.PresentationLayout_InnerRadius, 300);
         mThickness = a.getDimensionPixelOffset(R.styleable.PresentationLayout_Thickness, 30);
+        mTagPadding = a.getDimensionPixelOffset(R.styleable.PresentationLayout_TagPadding, 10);
+        mSlideEnable = a.getBoolean(R.styleable.PresentationLayout_SlideEnable,true);
+        mSlideLength = a.getDimensionPixelOffset(R.styleable.PresentationLayout_SlideLength,20);
+        mTagViewTextSize = a.getDimensionPixelOffset(R.styleable.PresentationLayout_TagViewTextSize,30);
         a.recycle();
         post(mDoBlurRunnable);
+        initStateChangeListener();
     }
 
-   /* @Override
+
+    public void setSlideEnable(boolean enable){
+        mSlideEnable = enable;
+    }
+
+    @Override
+    public void computeScroll() {
+        if(mDragHelper.continueSettling(true)){
+            ViewCompat.postInvalidateOnAnimation(this);
+        }
+    }
+
+    /**
+     * 初始化状态监听
+     */
+    private void initStateChangeListener() {
+        mStateChangeListenerList = new ArrayList<>();
+    }
+
+    /**
+     * 添加状态改变的监听
+     *
+     * @param listener
+     */
+    public void addStateChangeListener(StateChangeListener listener) {
+        mStateChangeListenerList.add(listener);
+    }
+
+    /**
+     * 移除状态改变监听
+     *
+     * @param listener
+     */
+    public void removeStateChangeListener(StateChangeListener listener) {
+        mStateChangeListenerList.remove(listener);
+    }
+
+    @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         return mDragHelper.shouldInterceptTouchEvent(ev);
     }
 
+
+    private float downX;
+    private float downY;
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        super.onTouchEvent(event);
         mDragHelper.processTouchEvent(event);
+
+            switch (MotionEventCompat.getActionMasked(event)) {
+                case MotionEvent.ACTION_DOWN:
+                    downX = event.getX();
+                    downY = event.getY();
+                    if(mState == STATE_EXPANDED){
+                        TagView tagView = findTopTagViewUnder(downX,downY);
+                        if(tagView != null){
+                            mDragHelper.captureChildView(tagView,event.getPointerId(0));
+                        }
+                    }
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if(mSlideEnable&&!isCaptured) {
+                        float x = event.getX();
+                        float y = event.getY();
+                        if (Math.abs(downX - x) < 10) {
+                            float dy = y - downY;
+                            if (dy > 0 && dy > mSlideLength) {
+                                expand();
+                                return false;
+                            }
+                            if (dy < 0 && -dy > mSlideLength) {
+                                collapse();
+                                return false;
+                            }
+                        }
+                    }
+                    break;
+            }
         return true;
-    }*/
+    }
+
+    public TagView findTopTagViewUnder(float x,float y){
+        for(int i=0;i<getChildCount();i++){
+            View child = getChildAt(i);
+            if(child instanceof TagView){
+                if(x>=child.getX()&&x<=child.getX()+child.getWidth()&&y>=child.getY()&&y<=child.getY()+child.getHeight()){
+                    return (TagView) child;
+                }
+            }
+        }
+        return null;
+    }
 
     /**
      * 返回当前状态 状态类型如下:
@@ -148,6 +284,7 @@ public class PresentationLayout extends RelativeLayout {
         }
     }
 
+
     private AnimatorSet createExpandAnimator() {
         ensureHeightIsCorrect();
         ObjectAnimator step1 = ObjectAnimator.ofInt(this, "height", mCollapsedHeight, mExpandHeight);
@@ -172,12 +309,15 @@ public class PresentationLayout extends RelativeLayout {
         ensureHeightIsCorrect();
         ObjectAnimator step1 = ObjectAnimator.ofInt(this, "height", mCollapsedHeight);
         ObjectAnimator step2 = ObjectAnimator.ofFloat(mBackgroundOverlay, "alpha", 1f, 0f);
+        step1.setDuration(600);
+        step2.setDuration(300);
         ensurePortrait();
         Animator step3 = mPortrait.hideHalo();
+        if (step3 != null) step3.setDuration(300);
         Animator step4 = createTagAnimator(true);
+        if (step4 != null) step4.setDuration(600);
         AnimatorSet set = new AnimatorSet();
         set.playTogether(step1, step2, step3, step4);
-        set.setDuration(400);
         set.addListener(mCollapseListener);
         return set;
     }
@@ -190,23 +330,32 @@ public class PresentationLayout extends RelativeLayout {
         int foreCastTop = forecastTop((LayoutParams) mPortrait.getLayoutParams(), expectHeight, mPortrait.getHeight());
         if (foreCastTop == Integer.MIN_VALUE) foreCastTop = mPortrait.getTop();
         int centerY = foreCastTop + mPortrait.getHeight() / 2;
-        int portraitRadius = mPortrait.getWidth() / 2;
         if (mTagViews != null) {
             AnimatorSet animatorSet = new AnimatorSet();
             List<Animator> animators = new ArrayList<>();
             for (int i = 0; i < mTagViews.size(); i++) {
                 TagView tagView = mTagViews.get(i);
                 tagView.setVisibility(VISIBLE);
-                float targetX, targetY;
+                float targetX, targetY, controlX, controlY;
                 if (reverse) {
                     targetX = tagView.getX() + tagView.getWidth() / 2;
                     targetY = tagView.getY() + tagView.getHeight() / 2;
+                    //将centerX 和 centerY 看做坐标原点
+                    float x = targetX - centerX;
+                    float y = targetY - centerY;
+                    float scaledX = 0.3f * x;
+                    float scaledY = 0.3f * y;
+                    //计算控制点 保证bezier曲线的导数相同
+                    controlX = centerX + Math.round(scaledX * Math.cos(CONTROL_RADIANS_OFFSET) + scaledY * Math.sin(CONTROL_RADIANS_OFFSET));
+                    controlY = centerY + Math.round(scaledY * Math.cos(CONTROL_RADIANS_OFFSET) - scaledX * Math.sin(CONTROL_RADIANS_OFFSET));
                 } else {
                     targetX = Math.round(centerX + (mInnerRadius + mThickness / 2) * Math.cos(RADIUS[i]));
                     targetY = Math.round(centerY - (mInnerRadius + mThickness / 2) * Math.sin(RADIUS[i]));
+                    mTargets[2*i] = targetX;
+                    mTargets[2*i+1] = targetY;
+                    controlX = Math.round(centerX + mInnerRadius * Math.cos(RADIUS[i] + CONTROL_RADIANS_OFFSET));
+                    controlY = Math.round(centerY - mInnerRadius * Math.sin(RADIUS[i] + CONTROL_RADIANS_OFFSET));
                 }
-                float controlX = Math.round(centerX + portraitRadius * Math.cos(RADIUS[i] + CONTROL_RADIANS_OFFSET));
-                float controlY = Math.round(centerY - portraitRadius * Math.sin(RADIUS[i] + CONTROL_RADIANS_OFFSET));
                 Path path = new Path();
                 if (reverse) {
                     path.moveTo(targetX, targetY);
@@ -243,7 +392,7 @@ public class PresentationLayout extends RelativeLayout {
             animatorSet.playTogether(animators);
             animatorSet.setDuration(800);
             if (reverse) {
-                animatorSet.setInterpolator(new LinearInterpolator());
+                animatorSet.setInterpolator(new AccelerateInterpolator());
             } else {
                 animatorSet.setInterpolator(new DecelerateInterpolator());
             }
@@ -362,6 +511,9 @@ public class PresentationLayout extends RelativeLayout {
         return Integer.MIN_VALUE;
     }
 
+    /**
+     * 模糊背景操作任务
+     */
     private Runnable mDoBlurRunnable = new Runnable() {
         @Override
         public void run() {
@@ -372,6 +524,27 @@ public class PresentationLayout extends RelativeLayout {
                 Drawable newDrawable = new BitmapDrawable(getResources(), blurBitmap);
                 mBluredBackground = newDrawable;
                 Util.setBackground(mBackgroundOverlay, newDrawable);
+            }
+        }
+    };
+    /**
+     * 做tag 周围小幅度移动动画
+     */
+    private Runnable mTagWanderRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mState == STATE_EXPANDED) {
+                for (int i = 0; i < mTagViews.size(); i++) {
+                    TagView tagView = mTagViews.get(i);
+                    if (tagView.shouldWander) {
+                        float targetX = mTargets[2*i] - tagView.getWidth()/2;
+                        float targetY = mTargets[2*i+1] - tagView.getHeight()/2;
+                        float x = Math.round(targetX + Math.random()*mThickness - mThickness/2);
+                        float y = Math.round(targetY + Math.random()*mThickness - mThickness/2);
+                        tagView.animate().translationX(x).translationY(y).setDuration(2000);
+                    }
+                }
+                ViewCompat.postOnAnimationDelayed(PresentationLayout.this, mTagWanderRunnable, 2000);
             }
         }
     };
@@ -426,7 +599,7 @@ public class PresentationLayout extends RelativeLayout {
         if (view != null && view instanceof Portrait) {
             mPortrait = (Portrait) view;
         } else {
-            throw new IllegalArgumentException("Require add the view implement Portrait.java and set id is R.id.portrait");
+            throw new IllegalArgumentException("Require contain the view implement Portrait.java and set id is R.id.portrait");
         }
     }
 
@@ -467,6 +640,8 @@ public class PresentationLayout extends RelativeLayout {
         if (mTagViews.size() < 7) {
             TagView tagView = new TagView(getContext());
             tagView.setSource(tag);
+            tagView.initOriginPadding(mTagPadding, mTagPadding, mTagPadding, mTagPadding);
+            tagView.setTextSize(mTagViewTextSize);
             tagView.setVisibility(GONE);
             tagView.setScaleX(0);
             tagView.setScaleY(0);
@@ -520,11 +695,14 @@ public class PresentationLayout extends RelativeLayout {
         @Override
         public void onAnimationStart(Animator animation) {
             mState = STATE_EXPANDING;
+            doStateChange(mState);
         }
 
         @Override
         public void onAnimationEnd(Animator animation) {
             mState = STATE_EXPANDED;
+            doStateChange(mState);
+            ViewCompat.postOnAnimation(PresentationLayout.this, mTagWanderRunnable);
         }
     };
     private AnimatorListenerAdapter mBlurOverlayExpandListener = new AnimatorListenerAdapter() {
@@ -538,12 +716,24 @@ public class PresentationLayout extends RelativeLayout {
         @Override
         public void onAnimationStart(Animator animation) {
             mState = STATE_COLLAPSING;
+            doStateChange(mState);
         }
 
         @Override
         public void onAnimationEnd(Animator animation) {
             mBackgroundOverlay.setVisibility(GONE);
             mState = STATE_COLLAPSED;
+            doStateChange(mState);
         }
     };
+
+    private void doStateChange(int state) {
+        for (StateChangeListener stateChangeListener : mStateChangeListenerList) {
+            stateChangeListener.onStateChange(state);
+        }
+    }
+
+    public interface StateChangeListener {
+        void onStateChange(int state);
+    }
 }
