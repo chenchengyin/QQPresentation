@@ -6,8 +6,9 @@
         <attr name="TagPadding" format="dimension"/>
         <attr name="SlideEnable" format="boolean"/>
         <attr name="SlideLength" format="dimension"/>
+        <attr name="TagViewTextColor" format="color"/>
         <attr name="TagViewTextSize" format="dimension"/>
-        <attr name="TagViewBackGround" format="color"/>
+        <attr name="TagViewBackgroundColor" format="color"/>
         <attr name="TagViewBorderWidth" format="dimension"/>
         <attr name="TagViewBorderColor" format="color"/>
     </declare-styleable>

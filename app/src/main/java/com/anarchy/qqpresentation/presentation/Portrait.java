@@ -1,9 +1,7 @@
 package com.anarchy.qqpresentation.presentation;
 
 import android.animation.Animator;
-import android.graphics.Point;
 import android.view.ViewGroup;
-import android.widget.RelativeLayout;
 
 /**
  * Version 2.1.1
@@ -16,7 +14,8 @@ import android.widget.RelativeLayout;
 public interface Portrait {
     Animator showHalo();
     Animator hideHalo();
-    Animator want();
+    void want(boolean want);
+    void desire(boolean desire);
     int getLeft();
     int getTop();
     int getWidth();
@@ -24,4 +23,8 @@ public interface Portrait {
     float getX();
     float getY();
     ViewGroup.LayoutParams getLayoutParams();
+    int getDesireLeft();
+    int getDesireRight();
+    int getDesireTop();
+    int getDesireBottom();
 }

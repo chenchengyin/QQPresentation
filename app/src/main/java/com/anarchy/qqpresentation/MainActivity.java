@@ -26,21 +26,4 @@ public class MainActivity extends AppCompatActivity {
         }
         mPresentationLayout.inputTags(mSource);
     }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        super.onCreateOptionsMenu(menu);
-        getMenuInflater().inflate(R.menu.item,menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        super.onOptionsItemSelected(item);
-        if(item.getItemId() == R.id.open){
-            mPresentationLayout.autoControl();
-            return true;
-        }
-        return false;
-    }
 }

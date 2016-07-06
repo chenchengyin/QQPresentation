@@ -4,9 +4,11 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.drawable.BitmapDrawable;
@@ -81,6 +83,8 @@ public class PresentationLayout extends RelativeLayout {
     private int mTagViewBackgroundColor;
     private int mTagViewBorderColor;
     private int mTagViewBorderWidth;
+    private int mTagViewTextColor;
+    private boolean inDesire = false;
 
 
 
@@ -124,19 +128,64 @@ public class PresentationLayout extends RelativeLayout {
                     public void onViewCaptured(View capturedChild, int activePointerId) {
                         if(capturedChild instanceof TagView){
                             isCaptured = true;
-                            ((TagView)capturedChild).shouldWander = false;
+                            ((TagView) capturedChild).shouldWander = false;
+                            mPortrait.want(true);
                             capturedLeft = capturedChild.getLeft();
                             capturedTop = capturedChild.getTop();
+
                         }
                     }
 
                     @Override
-                    public void onViewReleased(View releasedChild, float xvel, float yvel) {
+                    public void onViewReleased(final View releasedChild, float xvel, float yvel) {
                         if(releasedChild instanceof TagView){
                             isCaptured = false;
-                            ((TagView) releasedChild).shouldWander = true;
-                            mDragHelper.smoothSlideViewTo(releasedChild,capturedLeft,capturedTop);
-                            ViewCompat.postInvalidateOnAnimation(PresentationLayout.this);
+                            float x = releasedChild.getX() + releasedChild.getWidth() / 2;
+                            float y = releasedChild.getY() + releasedChild.getHeight() / 2;
+                            if(x>=mPortrait.getDesireLeft()&&x<=mPortrait.getDesireRight()&&y>=mPortrait.getDesireTop()&&y<=mPortrait.getDesireBottom()) {
+                                mPortrait.desire(false);
+                                ObjectAnimator insert = ObjectAnimator.ofPropertyValuesHolder(releasedChild,PropertyValuesHolder.ofFloat("scaleX",1f,0f,1f),
+                                        PropertyValuesHolder.ofFloat("scaleY",1f,0f,1f));
+                                insert.addListener(new AnimatorListenerAdapter() {
+                                    @Override
+                                    public void onAnimationEnd(Animator animation) {
+                                        TagView tagView = (TagView) releasedChild;
+                                        tagView.tag.count++;
+                                        tagView.setSource(tagView.tag);
+                                        tagView.invalidate();
+                                        settling(tagView);
+                                    }
+                                });
+                                insert.setDuration(400);
+                                insert.start();
+                            }else {
+                                mPortrait.want(false);
+                                settling((TagView) releasedChild);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onViewPositionChanged(View changedView, int left, int top, int dx, int dy) {
+                        if(isCaptured) {
+                            float x = changedView.getX() + changedView.getWidth() / 2;
+                            float y = changedView.getY() + changedView.getHeight() / 2;
+                            boolean desire;
+                            if(x>=mPortrait.getDesireLeft()&&x<=mPortrait.getDesireRight()&&y>=mPortrait.getDesireTop()&&y<=mPortrait.getDesireBottom()){
+                                desire = true;
+                                if(desire^inDesire){
+                                    inDesire = desire;
+                                    mPortrait.want(false);
+                                    mPortrait.desire(true);
+                                }
+                            }else {
+                                desire = false;
+                                if(desire^inDesire){
+                                    inDesire = desire;
+                                    mPortrait.desire(false);
+                                    mPortrait.want(true);
+                                }
+                            }
                         }
                     }
                 }
@@ -147,12 +196,22 @@ public class PresentationLayout extends RelativeLayout {
         mTagPadding = a.getDimensionPixelOffset(R.styleable.PresentationLayout_TagPadding, 10);
         mSlideEnable = a.getBoolean(R.styleable.PresentationLayout_SlideEnable,true);
         mSlideLength = a.getDimensionPixelOffset(R.styleable.PresentationLayout_SlideLength,20);
+        mTagViewTextColor = a.getColor(R.styleable.PresentationLayout_TagViewTextColor, Color.WHITE);
         mTagViewTextSize = a.getDimensionPixelOffset(R.styleable.PresentationLayout_TagViewTextSize,30);
+        mTagViewBackgroundColor = a.getColor(R.styleable.PresentationLayout_TagViewBackgroundColor,0x88888888);
+        mTagViewBorderColor = a.getColor(R.styleable.PresentationLayout_TagViewBorderColor,0xFFFCFCFC);
+        mTagViewBorderWidth = a.getDimensionPixelOffset(R.styleable.PresentationLayout_TagViewBorderWidth,3);
         a.recycle();
         post(mDoBlurRunnable);
         initStateChangeListener();
     }
 
+    private void settling(TagView releasedChild){
+         releasedChild.shouldWander = true;
+        mPortrait.want(false);
+        mDragHelper.smoothSlideViewTo(releasedChild, capturedLeft, capturedTop);
+        ViewCompat.postInvalidateOnAnimation(PresentationLayout.this);
+    }
 
     public void setSlideEnable(boolean enable){
         mSlideEnable = enable;
@@ -520,7 +579,7 @@ public class PresentationLayout extends RelativeLayout {
             Bitmap bitmap = Util.getBitmapFromDrawable(getBackground());
             if (mOriginBackground == null) mOriginBackground = getBackground();
             if (bitmap != null) {
-                Bitmap blurBitmap = Util.doBlur(getContext(), bitmap, 20);
+                Bitmap blurBitmap = Util.doBlur(getContext(), bitmap, 10);
                 Drawable newDrawable = new BitmapDrawable(getResources(), blurBitmap);
                 mBluredBackground = newDrawable;
                 Util.setBackground(mBackgroundOverlay, newDrawable);
@@ -639,9 +698,9 @@ public class PresentationLayout extends RelativeLayout {
         }
         if (mTagViews.size() < 7) {
             TagView tagView = new TagView(getContext());
-            tagView.setSource(tag);
             tagView.initOriginPadding(mTagPadding, mTagPadding, mTagPadding, mTagPadding);
-            tagView.setTextSize(mTagViewTextSize);
+            tagView.innerInit(mTagViewTextColor,mTagViewTextSize,mTagViewBackgroundColor,mTagViewBorderColor,mTagViewBorderWidth);
+            tagView.setSource(tag);
             tagView.setVisibility(GONE);
             tagView.setScaleX(0);
             tagView.setScaleY(0);

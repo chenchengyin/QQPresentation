@@ -36,12 +36,15 @@ class TagView extends View {
     private int originPaddingTop;
     private int originPaddingBottom;
 
-    private int mBgColor = 0x88888888;
     private TextPaint mTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-    private Paint mBgPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-    private int mTextSize = 30;
-    private int mTextColor = Color.WHITE;
-    private PresentationLayout.Tag tag;
+    private Paint mBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Paint mBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private int mTextSize;
+    private int mTextColor;
+    private int mBgColor;
+    private int mBorderColor;
+    private int mBorderWidth;
+    PresentationLayout.Tag tag;
     private StaticLayout mStaticLayout;
     private Rect mBounds = new Rect();
     private float mRadius;
@@ -67,6 +70,7 @@ class TagView extends View {
         mTextPaint.setColor(Color.WHITE);
         mTextPaint.setStyle(Paint.Style.FILL);
         mBgPaint.setColor(0x88888888);
+        mBorderPaint.setStyle(Paint.Style.STROKE);
     }
 
     public void initOriginPadding(int left,int top,int right, int bottom){
@@ -128,7 +132,8 @@ class TagView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         canvas.save();
-        canvas.drawCircle(mRadius,mRadius,mRadius,mBgPaint);
+        canvas.drawCircle(mRadius,mRadius,mRadius-mBorderWidth,mBgPaint);
+        canvas.drawCircle(mRadius,mRadius,mRadius-mBorderWidth,mBorderPaint);
         canvas.translate(getPaddingLeft(),getPaddingTop());
         mStaticLayout.draw(canvas);
         canvas.restore();
@@ -167,6 +172,19 @@ class TagView extends View {
         mTextSize = textSize;
         mTextPaint.setTextSize(textSize);
         invalidate();
+    }
+
+    void innerInit(int textColor,int textSize,int bgColor,int borderColor,int borderWidth){
+        mTextColor = textColor;
+        mTextSize = textSize;
+        mBgColor = bgColor;
+        mBorderColor = borderColor;
+        mBorderWidth = borderWidth;
+        mTextPaint.setColor(textColor);
+        mTextPaint.setTextSize(textSize);
+        mBgPaint.setColor(bgColor);
+        mBorderPaint.setColor(borderColor);
+        mBorderPaint.setStrokeWidth(borderWidth);
     }
 
     public int getTextColor() {

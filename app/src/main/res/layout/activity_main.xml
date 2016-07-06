@@ -9,7 +9,7 @@
 
     <com.anarchy.qqpresentation.presentation.PresentationLayout
         android:id="@+id/presentation"
-        android:background="@drawable/timg"
+        android:background="@drawable/bg"
         android:layout_width="match_parent"
         android:layout_height="350dp">
         <com.anarchy.qqpresentation.presentation.PortraitWrapper
@@ -22,7 +22,7 @@
             <com.anarchy.qqpresentation.presentation.CircleImageView
                 android:layout_width="90dp"
                 android:layout_centerInParent="true"
-                android:src="@drawable/portrait"
+                android:src="@drawable/yuan"
                 android:layout_height="90dp"/>
         </com.anarchy.qqpresentation.presentation.PortraitWrapper>
 
