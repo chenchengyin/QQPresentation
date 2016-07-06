@@ -12,6 +12,7 @@ import android.graphics.drawable.shapes.OvalShape;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
+import android.text.style.TextAppearanceSpan;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
@@ -44,7 +45,7 @@ class TagView extends View {
     private StaticLayout mStaticLayout;
     private Rect mBounds = new Rect();
     private float mRadius;
-
+    boolean shouldWander = true;
 
     public TagView(Context context) {
         super(context);
@@ -66,11 +67,20 @@ class TagView extends View {
         mTextPaint.setColor(Color.WHITE);
         mTextPaint.setStyle(Paint.Style.FILL);
         mBgPaint.setColor(0x88888888);
-        originPaddingBottom = getPaddingBottom();
-        originPaddingLeft = getPaddingLeft();
-        originPaddingRight = getPaddingRight();
-        originPaddingTop = getPaddingTop();
     }
+
+    public void initOriginPadding(int left,int top,int right, int bottom){
+        originPaddingBottom = bottom;
+        originPaddingLeft = left;
+        originPaddingRight = right;
+        originPaddingTop = top;
+    }
+
+    @Override
+    public void setPadding(int left, int top, int right, int bottom) {
+        super.setPadding(left, top, right, bottom);
+    }
+
     void setSource(PresentationLayout.Tag tag){
         this.tag = tag;
         String summary = tag.getTag();
@@ -100,8 +110,8 @@ class TagView extends View {
         if(mStaticLayout == null){
             super.onMeasure(widthMeasureSpec,heightMeasureSpec);
         }else {//不关心parent的属性 来测量高宽
-            int width = mStaticLayout.getWidth();
-            int height = mStaticLayout.getHeight();
+            int width = mStaticLayout.getWidth() + originPaddingLeft + originPaddingRight;
+            int height = mStaticLayout.getHeight() + originPaddingTop + originPaddingBottom;
             int diameter = (int) Math.hypot(width, height);
             mRadius = 0.5f*diameter;
             int paddingLeft = (diameter - width) / 2 + originPaddingLeft;
@@ -170,9 +180,17 @@ class TagView extends View {
     }
 
     void setPoint(PointF pointF){
-        setX(pointF.x - getWidth()/2);
-        setY(pointF.y - getHeight()/2);
+        float left = pointF.x - getWidth()/2;
+        float top = pointF.y - getHeight()/2;
+        setX(left);
+        setY(top);
     }
+
+    @Override
+    public void layout(int l, int t, int r, int b) {
+        super.layout(l, t, r, b);
+    }
+
     private PointF mPointF = new PointF();
     PointF getPoint(){
         mPointF.set(getLeft()+getWidth()/2,getTop()+getHeight()/2);
