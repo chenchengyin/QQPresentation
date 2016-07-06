@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <declare-styleable name="CircleImageView">
-        <attr name="BorderWidth" format="dimension"/>
-        <attr name="BorderColor" format="color"/>
-        <attr name="BorderCount" format="integer"/>
-        <attr name="BorderWeakRatio" format="fraction"/>
-    </declare-styleable>
     <declare-styleable name="PresentationLayout">
         <attr name="InnerRadius" format="dimension"/>
         <attr name="Thickness" format="dimension"/>
+        <attr name="TagPadding" format="dimension"/>
+        <attr name="SlideEnable" format="boolean"/>
+        <attr name="SlideLength" format="dimension"/>
+        <attr name="TagViewTextSize" format="dimension"/>
+        <attr name="TagViewBackGround" format="color"/>
+        <attr name="TagViewBorderWidth" format="dimension"/>
+        <attr name="TagViewBorderColor" format="color"/>
+    </declare-styleable>
+    <declare-styleable name="PortraitWrapper">
+        <attr name="BorderColor" format="color"/>
+        <attr name="FirstHaloColor" format="color"/>
+        <attr name="SecondHaloColor" format="color"/>
+        <!--用来计算大小-->
+        <attr name="HaloTotalWidth" format="dimension"/>
+        <attr name="BorderWidth" format="dimension"/>
     </declare-styleable>
 </resources>

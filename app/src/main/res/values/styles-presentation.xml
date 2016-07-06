@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Default_Presentation">
-        <item name="InnerRadius">110dp</item>
-        <item name="Thickness">10dp</item>
+        <item name="InnerRadius">130dp</item>
+        <item name="Thickness">20dp</item>
+        <item name="TagPadding">3dp</item>
+        <item name="SlideLength">5dp</item>
+        <item name="TagViewTextSize">15sp</item>
+        <item name="TagViewBackground">#de1a1a1a</item>
+        <item name="TagViewBorderColor">#c1c1c1</item>
+        <item name="TagViewBorderWidth">1dp</item>
+    </style>
+    <style name="Default_Portrait">
+        <item name="BorderColor">#FFFFFF</item>
+        <item name="BorderWidth">3dp</item>
+        <item name="FirstHaloColor">#FAAFFFFF</item>
+        <item name="SecondHaloColor">#CCCCFFFF</item>
+        <item name="HaloTotalWidth">50dp</item>
     </style>
 </resources>

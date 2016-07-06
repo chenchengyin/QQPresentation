@@ -16,9 +16,12 @@ import android.widget.RelativeLayout;
 public interface Portrait {
     Animator showHalo();
     Animator hideHalo();
+    Animator want();
     int getLeft();
     int getTop();
     int getWidth();
     int getHeight();
+    float getX();
+    float getY();
     ViewGroup.LayoutParams getLayoutParams();
 }

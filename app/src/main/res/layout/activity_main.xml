@@ -12,13 +12,19 @@
         android:background="@drawable/timg"
         android:layout_width="match_parent"
         android:layout_height="350dp">
-        <com.anarchy.qqpresentation.presentation.CircleImageView
-            android:layout_width="120dp"
+        <com.anarchy.qqpresentation.presentation.PortraitWrapper
             android:id="@id/portrait"
-            app:BorderWidth="10dp"
-            app:BorderCount="2"
+            app:SecondHaloColor="#96ffffff"
+            app:FirstHaloColor="#a5ffffff"
             android:layout_centerInParent="true"
-            android:src="@drawable/portrait"
-            android:layout_height="120dp"/>
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+            <com.anarchy.qqpresentation.presentation.CircleImageView
+                android:layout_width="90dp"
+                android:layout_centerInParent="true"
+                android:src="@drawable/portrait"
+                android:layout_height="90dp"/>
+        </com.anarchy.qqpresentation.presentation.PortraitWrapper>
+
     </com.anarchy.qqpresentation.presentation.PresentationLayout>
 </RelativeLayout>
