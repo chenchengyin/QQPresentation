@@ -1,5 +1,5 @@
 # QQPresentation
-仿QQ个人资料气泡展示
+仿QQ个人资料气泡展示 [实现过程](http://www.jianshu.com/p/9eb4c36477f2)
 #效果展示
 ![](https://github.com/AlphaBoom/QQPresentation/raw/master/QQPresentation.gif)
 #使用方式
